@@ -1,0 +1,158 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+<title>Szponciciel</title><link rel="icon" href="assets/icon.png">
+<style>
+:root{--accent:#c21a1a}
+html,body{height:100%;margin:0}
+body{background:#000000;color:#eaeaea;font-family:Inter,Segoe UI,Roboto,Arial,sans-serif}
+.header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;position:sticky;top:0;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);border-bottom:1px solid #111}
+.title{font-size:26px;letter-spacing:1px;font-weight:800;color:var(--accent);text-shadow:0 0 12px rgba(255,0,0,.25)}
+.btn{background:var(--accent);color:#000;border:none;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer;transition:transform .15s ease,opacity .2s ease}
+.btn:hover{transform:translateY(-1px);opacity:.95}
+.gear{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:#111;color:#ccc;cursor:pointer;border:1px solid #222}
+.gear:hover{border-color:var(--accent);color:#fff}
+.layout{display:flex;gap:16px;padding:16px 20px}
+.left{width:280px;background:#080808;border:1px solid #111;border-radius:16px;padding:12px;height:calc(100vh - 100px);overflow:auto}
+.right{flex:1;background:#050505;border:1px solid #111;border-radius:16px;padding:12px;height:calc(100vh - 100px);overflow:auto}
+.section-title{color:#bbb;font-size:13px;margin:10px 8px;text-transform:uppercase;letter-spacing:.1em}
+.folder{padding:10px 12px;border-radius:10px;margin:6px 4px;cursor:pointer;transition:background .15s ease,transform .15s ease;border:1px solid #111}
+.folder:hover{background:#0c0c0c;transform:translateX(2px)}
+.folder.active{background:#111;border-color:var(--accent);color:#fff}
+.file-card{background:#0b0b0b;border:1px solid #161616;border-radius:14px;padding:12px;margin:10px;display:flex;gap:12px;align-items:center;transition:transform .15s ease,box-shadow .2s ease}
+.file-card:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.file-thumb{width:64px;height:64px;border-radius:10px;background:#111;display:grid;place-items:center;font-size:12px;color:#777;border:1px solid #222}
+.file-name{font-weight:700;color:#eee}
+.muted{color:#999;font-size:12px}
+.top-actions{display:flex;gap:10px}
+.dropzone{border:2px dashed #222;border-radius:16px;padding:18px;margin:8px 0;text-align:center;color:#888}
+.dropzone.dragover{border-color:var(--accent);color:#fff;background:#0c0c0c}
+dialog{background:#0b0b0b;border:1px solid #222;border-radius:16px;padding:0;color:#ddd;width:520px;max-width:calc(100% - 32px)}
+dialog .dlg-head{padding:16px 18px;border-bottom:1px solid #181818;font-weight:700}
+dialog .dlg-body{padding:18px}
+dialog .dlg-actions{padding:14px 18px;border-top:1px solid #181818;display:flex;justify-content:flex-end;gap:10px}
+.pill{display:inline-block;padding:8px 12px;border:1px solid #222;border-radius:999px;margin:6px;cursor:pointer}
+.pill.active{border-color:var(--accent);color:#fff;background:#121212}
+.link{color:var(--accent);text-decoration:none}
+</style></head>
+<body>
+<div class="header">
+  <div class="title">Szponciciel</div>
+  <div class="top-actions">
+    <button class="btn" id="btnImport">Importuj pliki</button>
+    <div class="gear" id="btnSettings">⚙</div>
+  </div>
+</div>
+<div class="layout">
+  <div class="left">
+    <div class="section-title">Foldery</div>
+    <div id="folders"></div>
+    <div style="padding:8px;"><button class="btn" id="btnNewFolder" style="width:100%;">Nowy folder</button></div>
+  </div>
+  <div class="right">
+    <div class="section-title" id="currentFolderLabel">Wybierz folder</div>
+    <div id="dropzone" class="dropzone">Przeciągnij pliki tutaj albo użyj „Importuj pliki”</div>
+    <div id="files"></div>
+  </div>
+</div>
+<dialog id="dlgFirstRun"><div class="dlg-head">Wybierz foldery startowe</div><div class="dlg-body" id="firstRunBody"></div><div class="dlg-actions"><button class="btn" id="firstRunConfirm">Zatwierdź</button></div></dialog>
+<dialog id="dlgSettings"><div class="dlg-head">Ustawienia</div><div class="dlg-body"><div>Kolor akcentu:</div><div id="accentOptions"></div></div><div class="dlg-actions"><button class="btn" id="settingsSave">Zapisz</button></div></dialog>
+<input type="file" id="filePicker" multiple style="display:none"/>
+<script>
+const { api } = window;
+const foldersEl = document.getElementById('folders');
+const filesEl = document.getElementById('files');
+const dropzone = document.getElementById('dropzone');
+const currentFolderLabel = document.getElementById('currentFolderLabel');
+const filePicker = document.getElementById('filePicker');
+const btnImport = document.getElementById('btnImport');
+const btnNewFolder = document.getElementById('btnNewFolder');
+const btnSettings = document.getElementById('btnSettings');
+const dlgFirstRun = document.getElementById('dlgFirstRun');
+const firstRunBody = document.getElementById('firstRunBody');
+const firstRunConfirm = document.getElementById('firstRunConfirm');
+const dlgSettings = document.getElementById('dlgSettings');
+const settingsSave = document.getElementById('settingsSave');
+const accentOptions = document.getElementById('accentOptions');
+let currentFolder = null; let cfg = { accent:"#c21a1a" };
+
+const DEFAULT_FOLDERS = ["shoot gg","majestic rp","oslo rp","redux altv","citizen fivem"];
+const ACCENTS = [["Czerwony","#c21a1a"],["Zielony","#28a745"],["Niebieski","#1e90ff"],["Żółty","#f0c419"],["Fioletowy","#8a2be2"]];
+
+function setAccent(hex){ document.documentElement.style.setProperty('--accent', hex); }
+function el(tag,cls,txt){ const e=document.createElement(tag); if(cls) e.className=cls; if(txt) e.textContent=txt; return e; }
+
+function renderFolders(list){
+  foldersEl.innerHTML = "";
+  list.forEach(name => {
+    const div = el('div','folder'+(name===currentFolder?' active':''),name);
+    div.onclick = () => openFolder(name);
+    foldersEl.appendChild(div);
+  });
+}
+function renderFiles(items){
+  filesEl.innerHTML = "";
+  if(!currentFolder){ filesEl.innerHTML = '<div class="muted">Brak wybranego folderu.</div>'; return; }
+  if(items.length===0){ filesEl.innerHTML = '<div class="muted">Brak plików w tym folderze.</div>'; return; }
+  items.forEach(f => {
+    const card = el('div','file-card');
+    const thumb = el('div','file-thumb', (f.ext||'').toUpperCase().replace('.','')||'FILE');
+    const meta = el('div');
+    const name = el('div','file-name',f.name);
+    const when = el('div','muted','Utworzony: '+f.created);
+    meta.appendChild(name); meta.appendChild(when);
+    card.appendChild(thumb); card.appendChild(meta);
+    filesEl.appendChild(card);
+  });
+}
+async function openFolder(name){
+  currentFolder = name; currentFolderLabel.textContent = "Folder: " + name;
+  renderFolders(await api.listFolders()); renderFiles(await api.listFiles(name));
+}
+
+function renderFirstRunOptions(){
+  firstRunBody.innerHTML = "";
+  DEFAULT_FOLDERS.forEach(n=>{
+    const span = el('span','pill active',n); span.dataset.name = n; span.onclick=()=>span.classList.toggle('active');
+    firstRunBody.appendChild(span);
+  });
+}
+function renderAccentOptions(current){
+  accentOptions.innerHTML = "";
+  ACCENTS.forEach(([label,hex])=>{
+    const span = el('span','pill'+(hex===current?' active':''),label); span.dataset.hex = hex;
+    span.onclick = ()=>{ document.querySelectorAll('#accentOptions .pill').forEach(p=>p.classList.remove('active')); span.classList.add('active'); }
+    accentOptions.appendChild(span);
+  });
+}
+
+(async function init(){
+  cfg = await api.loadConfig(); setAccent(cfg.accent||"#c21a1a");
+  const fl = await api.listFolders(); renderFolders(fl);
+  if(cfg.firstRun){ renderFirstRunOptions(); dlgFirstRun.showModal(); }
+})();
+
+firstRunConfirm.onclick = async ()=>{
+  const chosen = Array.from(firstRunBody.querySelectorAll('.pill.active')).map(p=>p.dataset.name);
+  await api.finishFirstRun(chosen); dlgFirstRun.close(); renderFolders(await api.listFolders());
+};
+btnSettings.onclick = async ()=>{ cfg = await api.loadConfig(); renderAccentOptions(cfg.accent||"#c21a1a"); dlgSettings.showModal(); };
+settingsSave.onclick = async ()=>{ const active = accentOptions.querySelector('.pill.active'); if(active){ const hex=active.dataset.hex; await api.setAccent(hex); setAccent(hex);} dlgSettings.close(); };
+btnNewFolder.onclick = async ()=>{ const name = prompt("Nazwa nowego folderu:"); if(!name) return; await api.createFolder(name); renderFolders(await api.listFolders()); };
+btnImport.onclick = ()=> filePicker.click();
+filePicker.addEventListener('change', async (e)=>{
+  const files = Array.from(e.target.files).map(f=>f.path);
+  if(!currentFolder){ alert("Najpierw wybierz folder."); return;}
+  await api.importFiles(currentFolder, files);
+  renderFiles(await api.listFiles(currentFolder));
+  filePicker.value = "";
+});
+['dragenter','dragover'].forEach(evt=>dropzone.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.add('dragover'); }));
+['dragleave','drop'].forEach(evt=>dropzone.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.remove('dragover'); }));
+dropzone.addEventListener('drop', async (e)=>{
+  if(!currentFolder){ alert("Najpierw wybierz folder."); return; }
+  const files = Array.from(e.dataTransfer.files).map(f=>f.path);
+  await api.importFiles(currentFolder, files);
+  renderFiles(await api.listFiles(currentFolder));
+});
+</script></body></html>

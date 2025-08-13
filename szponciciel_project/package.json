@@ -1,0 +1,41 @@
+{
+  "name": "szponciciel",
+  "version": "1.0.1",
+  "description": "Szponciciel \u2014 eksplorator klip\u00f3w z gier",
+  "main": "main.js",
+  "author": "sunoo333",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "29.4.6",
+    "electron-builder": "24.13.3"
+  },
+  "build": {
+    "appId": "lol.guns.szponciciel",
+    "productName": "Szponciciel",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "splash.html",
+      "assets/**/*"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "Szponciciel Setup ${version}.exe"
+    }
+  }
+}
